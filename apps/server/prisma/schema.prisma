@@ -1,0 +1,204 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserProvider {
+  google
+}
+
+enum WorkspaceRole {
+  owner
+  member
+}
+
+enum InvitationRole {
+  member
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
+}
+
+enum ProjectStatus {
+  active
+  completed
+  archived
+}
+
+enum MilestoneStatus {
+  pending
+  completed
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  review
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+model User {
+  id               String            @id @default(uuid(7))
+  fullName         String
+  avatarUrl        String?
+  isOnboarded      Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  authUsers        AuthUser[]
+  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  invitationsSent  Invitation[]      @relation("InvitedBy")
+  assignedTasks    Task[]
+  timeLogs         TimeLog[]
+
+  @@map("users")
+}
+
+model AuthUser {
+  id               String    @id @default(uuid(7))
+  userId           String
+  email            String    @unique
+  provider         UserProvider
+  providerId       String
+  refreshTokenHash String?
+  lastLoginAt      DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("auth_users")
+}
+
+model Workspace {
+  id            String            @id @default(uuid(7))
+  ownerId       String
+  workspaceName String
+  slug          String            @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members       WorkspaceMember[]
+  projects      Project[]
+  invitations   Invitation[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid(7))
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  joinedAt    DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Invitation {
+  id          String           @id @default(uuid(7))
+  workspaceId String
+  email       String
+  role        InvitationRole
+  token       String           @unique
+  invitedById String
+  status      InvitationStatus @default(pending)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User             @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([email])
+  @@map("invitations")
+}
+
+model Project {
+  id          String        @id @default(uuid(7))
+  workspaceId String
+  projectName String
+  description String?
+  status      ProjectStatus @default(active)
+  startDate   DateTime?
+  dueDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  milestones  Milestone[]
+  tasks       Task[]
+
+  @@map("projects")
+}
+
+model Milestone {
+  id            String          @id @default(uuid(7))
+  projectId     String
+  milestoneName String
+  description   String?
+  dueDate       DateTime?
+  status        MilestoneStatus @default(pending)
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks         Task[]
+
+  @@map("milestones")
+}
+
+model Task {
+  id          String       @id @default(uuid(7))
+  projectId   String
+  milestoneId String?
+  assigneeId  String
+  taskTitle   String
+  description String?
+  status      TaskStatus   @default(todo)
+  priority    TaskPriority @default(medium)
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone   Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignee    User         @relation(fields: [assigneeId], references: [id])
+  timeLogs    TimeLog[]
+
+  @@map("tasks")
+}
+
+model TimeLog {
+  id          String    @id @default(uuid(7))
+  userId      String
+  taskId      String
+  startTime   DateTime
+  endTime     DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@map("time_logs")
+}
