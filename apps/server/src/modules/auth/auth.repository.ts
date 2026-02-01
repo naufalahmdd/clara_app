@@ -1,17 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma/prisma.service';
+import { UpsertUserDto } from './dto/upsert-user.dto';
 
 @Injectable()
 export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async upsertUser({user, refreshTokenHash}: any) {
+  async upsertUser(user: UpsertUserDto) {
     return await this.prisma.authUser.upsert({
       where: {
         email: user.email,
       },
       update: {
-        refreshTokenHash: refreshTokenHash,
+        refreshTokenHash: user.refreshTokenHash,
         lastLoginAt: new Date(),
         user: {
           update: {
@@ -24,7 +25,7 @@ export class AuthRepository {
         providerId: user.providerId,
         provider: user.provider,
         email: user.email,
-        refreshTokenHash: refreshTokenHash,
+        refreshTokenHash: user.refreshTokenHash,
         lastLoginAt: new Date(),
         user: {
           create: {
@@ -36,6 +37,17 @@ export class AuthRepository {
       },
       include: {
         user: true,
+      },
+    });
+  }
+
+  async logOut(userId: string) {
+    return await this.prisma.authUser.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        refreshTokenHash: null,
       },
     });
   }

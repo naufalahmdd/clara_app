@@ -3,6 +3,7 @@ import { AuthRepository } from './auth.repository';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
+import { OAuthUserDto } from './dto/oauth-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -11,9 +12,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async loginWithOAuth(user: any) {
-    console.log('Data user:', user);
-
+  async loginWithOAuth(user: OAuthUserDto) {
     const refreshToken = uuidv4();
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     const authResult = await this.repository.upsertUser({
@@ -31,5 +30,10 @@ export class AuthService {
       accessToken,
       refreshTokenHash,
     };
+  }
+
+  async logOut(userId: string) {
+    const logOutResult = await this.repository.logOut(userId);
+    return true;
   }
 }

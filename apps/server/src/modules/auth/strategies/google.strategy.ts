@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-google-oauth20';
+import { OAuthUserSchema } from '../dto/oauth-user.dto';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy) {
@@ -14,12 +15,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(accessToken: string, refreshToken: string, profile: any) {
-    return {
+    const userParsed = OAuthUserSchema.parse({
       providerId: profile.id,
       provider: profile.provider,
       email: profile.emails[0]?.value,
       fullName: profile.displayName,
       avatarUrl: profile.photos[0]?.value,
-    };
+    })
+    return userParsed
   }
 }
