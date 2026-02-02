@@ -65,6 +65,7 @@ model User {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   authUsers        AuthUser[]
+  authSession      AuthSession[]
   ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
   workspaceMembers WorkspaceMember[]
   invitationsSent  Invitation[]      @relation("InvitedBy")
@@ -75,17 +76,37 @@ model User {
 }
 
 model AuthUser {
-  id               String    @id @default(uuid(7))
-  userId           String
-  email            String    @unique
-  provider         UserProvider
-  providerId       String
-  refreshTokenHash String?
-  lastLoginAt      DateTime?
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String        @id @default(uuid(7))
+  userId      String
+  email       String        @unique
+  provider    UserProvider
+  providerId  String
+  lastLoginAt DateTime?
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authSession AuthSession[]
 
   @@unique([provider, providerId])
   @@map("auth_users")
+}
+
+model AuthSession {
+  id           String   @id @default(uuid(7))
+  userId       String
+  authUserId   String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  authUser AuthUser @relation(fields: [authUserId], references: [id])
+
+  @@index([userId])
+  @@index([authUserId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
 }
 
 model Workspace {
