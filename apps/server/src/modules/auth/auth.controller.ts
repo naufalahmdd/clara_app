@@ -5,9 +5,9 @@ import {
   Controller,
   Get,
   Post,
-  Redirect,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -23,15 +23,15 @@ export class AuthController {
   @UseGuards(GoogleGuard)
   async googleAuth() {}
 
-  @Redirect()
   @Get('/google/callback')
   @UseGuards(GoogleGuard)
   async googleAuthCallback(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { isOnboarded, accessToken, refreshToken } =
-      await this.service.loginWithOAuth(req.user as OAuthUserDto);
+    const { accessToken, refreshToken } = await this.service.loginWithOAuth(
+      req.user as OAuthUserDto,
+    );
 
     const cookieOptions = {
       httpOnly: true,
@@ -49,11 +49,7 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const redirectUrl = isOnboarded
-      ? `${process.env.FRONTEND_URL}/dashboard`
-      : `${process.env.FRONTEND_URL}/get-started`;
-
-    return { url: redirectUrl };
+    return res.redirect(`${process.env.FRONTEND_URL}/auth/callback`);
   }
 
   @Get('/profile')
@@ -67,21 +63,24 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies['refresh_token'];
-    const { newAccessToken, newRefreshToken } =
-      await this.service.refreshToken(refreshToken);
+    const refreshTokenCookie = req.cookies['refresh_token'];
+    if (!refreshTokenCookie) {
+      throw new UnauthorizedException();
+    }
+    const { accessToken, refreshToken } =
+      await this.service.refreshToken(refreshTokenCookie);
+
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/',
     };
-
-    res.cookie('access_token', newAccessToken, {
+    res.cookie('access_token', accessToken, {
       ...cookieOptions,
       maxAge: 24 * 60 * 60 * 1000,
     });
-    res.cookie('refresh_token', newRefreshToken, {
+    res.cookie('refresh_token', refreshToken, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -89,11 +88,13 @@ export class AuthController {
     return { success: true };
   }
 
-  @Redirect()
   @Post('/log-out')
   async logOut(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = await req.cookies['refresh_token'];
-    const result = await this.service.revokeToken(refreshToken);
+    const refreshTokenCookie = req.cookies['refresh_token'];
+    if(!refreshTokenCookie) {
+      return {success: false}
+    }
+    const result = await this.service.revokeToken(refreshTokenCookie);
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -101,8 +102,8 @@ export class AuthController {
       path: '/',
     };
 
-    res.clearCookie('access_token', { ...cookieOptions });
-    res.clearCookie('refresh_token', { ...cookieOptions });
+    res.clearCookie('access_token', { ...cookieOptions, maxAge: 0 });
+    res.clearCookie('refresh_token', { ...cookieOptions, maxAge: 0 });
 
     return result;
   }

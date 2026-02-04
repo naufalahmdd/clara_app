@@ -90,15 +90,15 @@ model AuthUser {
 }
 
 model AuthSession {
-  id           String   @id @default(uuid(7))
-  userId       String
-  authUserId   String
-  refreshToken String   @unique
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  userAgent    String?
-  ipAddress    String?
-  createdAt    DateTime @default(now())
+  id               String    @id @default(uuid(7))
+  userId           String
+  authUserId       String
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime  @default(now())
 
   user     User     @relation(fields: [userId], references: [id])
   authUser AuthUser @relation(fields: [authUserId], references: [id])

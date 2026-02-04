@@ -47,10 +47,10 @@ export class AuthRepository {
     });
   }
 
-  async findSession(refreshToken: string) {
-    return await this.prisma.authSession.findUnique({
+  async findSession(refreshTokenHash: string) {
+    return await this.prisma.authSession.findFirst({
       where: {
-        refreshToken: refreshToken,
+        refreshTokenHash: refreshTokenHash,
       },
       include: {
         user: true,
@@ -60,36 +60,23 @@ export class AuthRepository {
   }
 
   async rotateRefreshToken(data: RotateRefreshTokenDto) {
-    return await this.prisma.authSession.update({
+    return await this.prisma.authSession.updateMany({
       where: {
-        id: data.sessionId,
+        refreshTokenHash: data.oldRefreshTokenHash,
       },
       data: {
-        refreshToken: data.newRefreshToken,
+        refreshTokenHash: data.newRefreshTokenHash,
         expiresAt: data.newExpiresAt,
-      },
-      select: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            isOnboarded: true,
-          },
-        },
-        authUser: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
       },
     });
   }
 
-  async revokeToken(sessionId: string) {
-    return await this.prisma.authSession.update({
+  async revokeToken(refreshTokenHash: string) {
+    return await this.prisma.authSession.updateMany({
       where: {
-        id: sessionId,
+        refreshTokenHash: refreshTokenHash,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
       },
       data: {
         revokedAt: new Date(),

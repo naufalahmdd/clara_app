@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const RotateRefreshTokenSchema = z.object({
-  sessionId: z.string(),
-  newRefreshToken: z.string(),
+  newRefreshTokenHash: z.string(),
   newExpiresAt: z.date(),
+  oldRefreshTokenHash: z.string()
 });
 
 export type RotateRefreshTokenDto = z.infer<typeof RotateRefreshTokenSchema>;

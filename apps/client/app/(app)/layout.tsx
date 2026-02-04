@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "../globals.css";
+import { SidebarProvider, SidebarTrigger } from "@/components/atoms/sidebar";
+import AppSidebar from "@/components/organisms/app-sidebar";
 
 const sans = Inter({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -38,7 +40,13 @@ export default function RootLayout({
       <body
         className={`${sans.variable} ${mono.variable} ${serif.variable} antialiased`}
       >
-        {children}
+        <SidebarProvider>
+          <AppSidebar />
+          <main className="w-full">
+            <SidebarTrigger />
+            {children}
+          </main>
+        </SidebarProvider>
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthRepository } from './auth.repository';
 import { JwtService } from '@nestjs/jwt';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes, createHash } from 'crypto';
 import { OAuthUserDto } from './dto/oauth-user.dto';
 import { addDays } from 'src/common/utils/date.util';
 
@@ -13,8 +13,10 @@ export class AuthService {
   ) {}
 
   async loginWithOAuth(user: OAuthUserDto) {
-    const refreshToken = uuidv4();
-
+    const refreshToken = randomBytes(32).toString('hex');
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
     const authResult = await this.repository.upsertUser({
       ...user,
     });
@@ -23,7 +25,7 @@ export class AuthService {
     const sessionData = {
       userId: authResult.user.id,
       authUserId: authResult.id,
-      refreshToken,
+      refreshTokenHash,
       expiresAt,
     };
     await this.repository.createSession(sessionData);
@@ -36,48 +38,64 @@ export class AuthService {
     });
 
     return {
-      isOnboarded: authResult.user.isOnboarded,
       accessToken,
       refreshToken,
     };
   }
 
-  async refreshToken(refreshToken: string) {
-    const session = await this.repository.findSession(refreshToken);
+  async refreshToken(refreshTokenCookie: string) {
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshTokenCookie)
+      .digest('hex');
+
+    const session = await this.repository.findSession(refreshTokenHash);
     if (!session) {
       throw new UnauthorizedException();
     }
+
     if (session.expiresAt < new Date()) {
       throw new UnauthorizedException();
     }
 
-    const newRefreshToken = uuidv4();
+    if (session.revokedAt) {
+      throw new UnauthorizedException();
+    }
+
+    const newRefreshToken = randomBytes(32).toString('hex');
+    const newRefreshTokenHash = createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
     const newExpiresAt = addDays(7);
+
     const data = {
-      sessionId: session.id,
-      newRefreshToken,
+      newRefreshTokenHash,
       newExpiresAt,
+      oldRefreshTokenHash: refreshTokenHash,
     };
     const result = await this.repository.rotateRefreshToken(data);
+    if (result.count === 0) {
+      throw new UnauthorizedException();
+    }
 
     const newAccessToken = this.jwtService.sign({
-      sub: result.user.id,
-      email: result.authUser.email,
-      fullName: result.user.fullName,
-      isOnboarded: result.user.isOnboarded,
+      sub: session.user.id,
+      email: session.authUser.email,
+      fullName: session.user.fullName,
+      isOnboarded: session.user.isOnboarded,
     });
 
     return {
-      newRefreshToken,
-      newAccessToken,
+      refreshToken: newRefreshToken,
+      accessToken: newAccessToken,
     };
   }
 
-  async revokeToken(refreshToken: string) {
-    const session = await this.repository.findSession(refreshToken)
-    if(!session || session.revokedAt || session.expiresAt < new Date()) return
+  async revokeToken(refreshTokenCookie: string) {
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshTokenCookie)
+      .digest('hex');
 
-    await this.repository.revokeToken(session.id)
-    return {success: true}
-  } 
+    const result = await this.repository.revokeToken(refreshTokenHash);
+    return { success: result.count > 0 };
+  }
 }
