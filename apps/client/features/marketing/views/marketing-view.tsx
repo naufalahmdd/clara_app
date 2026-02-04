@@ -1,7 +1,9 @@
+import MarketingHero from "../components/marketing-hero";
+
 export default function MarketingView() {
   return (
-    <div>
-      Marketing Page
-    </div>
+    <main className="flex flex-col items-center w-full">
+      <MarketingHero />
+    </main>
   )
 }
